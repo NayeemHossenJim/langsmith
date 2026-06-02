@@ -2,31 +2,23 @@
 
 import os
 from dotenv import load_dotenv
-
-from langsmith import traceable  # <-- key import
-
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langsmith import traceable
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
-
-# --- LangSmith env (make sure these are set) ---
-# LANGCHAIN_TRACING_V2=true
-# LANGCHAIN_API_KEY=...
-# LANGCHAIN_PROJECT=pdf_rag_demo
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
 
 load_dotenv()
+PDF_PATH = "islr.pdf" 
+os.environ["LANGCHAIN_PROJECT"] = "RAG_CHATBOT_v2"
 
-PDF_PATH = "islr.pdf"  # change to your file
-
-# ---------- traced setup steps ----------
 @traceable(name="load_pdf")
 def load_pdf(path: str):
     loader = PyPDFLoader(path)
-    return loader.load()  # list[Document]
+    return loader.load()
 
 @traceable(name="split_documents")
 def split_documents(docs, chunk_size=1000, chunk_overlap=150):
@@ -38,11 +30,9 @@ def split_documents(docs, chunk_size=1000, chunk_overlap=150):
 @traceable(name="build_vectorstore")
 def build_vectorstore(splits):
     emb = OpenAIEmbeddings(model="text-embedding-3-small")
-    # FAISS.from_documents internally calls the embedding model:
     vs = FAISS.from_documents(splits, emb)
     return vs
 
-# You can also trace a “setup” umbrella span if you want:
 @traceable(name="setup_pipeline")
 def setup_pipeline(pdf_path: str):
     docs = load_pdf(pdf_path)
@@ -50,7 +40,6 @@ def setup_pipeline(pdf_path: str):
     vs = build_vectorstore(splits)
     return vs
 
-# ---------- pipeline ----------
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
 prompt = ChatPromptTemplate.from_messages([
@@ -61,7 +50,6 @@ prompt = ChatPromptTemplate.from_messages([
 def format_docs(docs):
     return "\n\n".join(d.page_content for d in docs)
 
-# Build the index under traced setup
 vectorstore = setup_pipeline(PDF_PATH)
 retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 4})
 
@@ -72,11 +60,9 @@ parallel = RunnableParallel({
 
 chain = parallel | prompt | llm | StrOutputParser()
 
-# ---------- run a query (also traced) ----------
 print("PDF RAG ready. Ask a question (or Ctrl+C to exit).")
 q = input("\nQ: ").strip()
 
-# Give the visible run name + tags/metadata so it’s easy to find:
 config = {
     "run_name": "pdf_rag_query"
 }

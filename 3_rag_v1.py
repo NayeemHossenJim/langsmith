@@ -2,17 +2,19 @@
 
 import os
 from dotenv import load_dotenv
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
 
 load_dotenv()  # expects OPENAI_API_KEY in .env
 
 PDF_PATH = "islr.pdf"  # <-- change to your PDF filename
+
+os.environ["LANGCHAIN_PROJECT"] = "RAG_CHATBOT"  # for LangSmith tracing
 
 # 1) Load PDF
 loader = PyPDFLoader(PDF_PATH)
