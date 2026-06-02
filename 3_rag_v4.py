@@ -1,31 +1,27 @@
-# pip install -U langchain langchain-openai langchain-community faiss-cpu pypdf python-dotenv langsmith
-
 import os
 import json
 import hashlib
 from pathlib import Path
 from dotenv import load_dotenv
-
 from langsmith import traceable
-
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
 
 load_dotenv()
 
-PDF_PATH = "islr.pdf"  # change to your file
+PDF_PATH = "islr.pdf" 
 INDEX_ROOT = Path(".indices")
 INDEX_ROOT.mkdir(exist_ok=True)
+os.environ["LANGCHAIN_PROJECT"] = "RAG_CHATBOT_v4"
 
-# ----------------- helpers (traced) -----------------
 @traceable(name="load_pdf")
 def load_pdf(path: str):
-    return PyPDFLoader(path).load()  # list[Document]
+    return PyPDFLoader(path).load()
 
 @traceable(name="split_documents")
 def split_documents(docs, chunk_size=1000, chunk_overlap=150):
@@ -39,7 +35,7 @@ def build_vectorstore(splits, embed_model_name: str):
     emb = OpenAIEmbeddings(model=embed_model_name)
     return FAISS.from_documents(splits, emb)
 
-# ----------------- cache key / fingerprint -----------------
+
 def _file_fingerprint(path: str) -> dict:
     p = Path(path)
     h = hashlib.sha256()
@@ -58,7 +54,6 @@ def _index_key(pdf_path: str, chunk_size: int, chunk_overlap: int, embed_model_n
     }
     return hashlib.sha256(json.dumps(meta, sort_keys=True).encode("utf-8")).hexdigest()
 
-# ----------------- explicitly traced load/build runs -----------------
 @traceable(name="load_index", tags=["index"])
 def load_index_run(index_dir: Path, embed_model_name: str):
     emb = OpenAIEmbeddings(model=embed_model_name)
@@ -83,7 +78,6 @@ def build_index_run(pdf_path: str, index_dir: Path, chunk_size: int, chunk_overl
     }, indent=2))
     return vs
 
-# ----------------- dispatcher (not traced) -----------------
 def load_or_build_index(
     pdf_path: str,
     chunk_size: int = 1000,
@@ -99,7 +93,6 @@ def load_or_build_index(
     else:
         return build_index_run(pdf_path, index_dir, chunk_size, chunk_overlap, embed_model_name)
 
-# ----------------- model, prompt, and pipeline -----------------
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
 prompt = ChatPromptTemplate.from_messages([
@@ -143,7 +136,6 @@ def setup_pipeline_and_query(
         config={"run_name": "pdf_rag_query", "tags": ["qa"], "metadata": {"k": 4}}
     )
 
-# ----------------- CLI -----------------
 if __name__ == "__main__":
     print("PDF RAG ready. Ask a question (or Ctrl+C to exit).")
     q = input("\nQ: ").strip()
